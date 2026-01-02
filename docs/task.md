@@ -6,6 +6,8 @@
 - [ ] Java 后端项目初始化（Spring Boot 3.x + Java 17）
 - [ ] Python AI 服务项目结构优化
 - [ ] 数据库表结构设计与初始化脚本
+- [x] 添加项目 README 说明文档
+- [x] 添加 .gitignore 配置文件
 
 ---
 

@@ -1,0 +1,76 @@
+# ### Java ###
+bin/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Gradle
+.gradle
+build/
+
+# ### Python ###
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.venv/
+venv/
+ENV/
+
+# ### Docker ###
+data/
+*.db
+
+# ### IDEs ###
+.idea/
+.vscode/
+*.swp
+*.swo
+.project
+.classpath
+.settings/
+.nb-gradle/
+
+# ### Environment & Security ###
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key
+
+# ### System ###
+.DS_Store
+Thumbs.db
