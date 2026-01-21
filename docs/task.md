@@ -38,4 +38,28 @@
 - [x] Add Context (Session Persistence)
 - [x] Add Markdown Rendering
 - [x] Add Chat History with Session List
-- [ ] Final Verification
+
+## Phase 7: Document Management Module
+- [x] Backend Implementation (DocumentController, DocumentService, MinioService)
+- [x] Frontend DocList.vue with modern UI
+- [x] File upload with progress
+- [x] File list with icons and colors
+- [x] Download with JWT authentication
+- [x] Delete functionality
+- [x] Full flow verification
+- [ ] Final System Testing
+
+## Phase 8: RAG & Knowledge Base Implementation
+- [ ] **Infrastructure**: Verify `pgvector` configuration in docker-compose
+- [ ] **Python AI Service**:
+    - [ ] Install dependencies (`langchain`, `psycopg2`, `sentence-transformers`)
+    - [ ] Implement PDF/Markdown text extraction
+    - [ ] Implement Text Chunking & Embedding logic
+    - [ ] Create API endpoint `/api/v1/ingest` (Document -> Vectors)
+    - [ ] Update `/api/v1/chat/stream` to support Context Retrieval
+- [ ] **Java Backend**:
+    - [ ] Create `RagController` to bridge frontend and Python service
+    - [ ] Trigger ingestion when file is uploaded (Open Feign or RestTemplate)
+- [ ] **Frontend**:
+    - [ ] Add "Indexing Status" column in Document List
+    - [ ] Add "Search/RAG" toggle in Chat Interface (Optional)

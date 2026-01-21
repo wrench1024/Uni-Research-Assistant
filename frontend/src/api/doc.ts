@@ -55,18 +55,29 @@ export const docAPI = {
     },
 
     /**
-     * Download document - opens in new tab (backend streams file)
+     * Download document with authentication
      * Backend: GET /doc/{id}/download
      */
-    downloadDocument(docId: number, filename: string): void {
-        const token = localStorage.getItem('token')
-        const url = `/api/doc/${docId}/download`
-
-        // Create a temporary link and trigger download
-        const link = document.createElement('a')
-        link.href = url
-        link.download = filename
-        link.click()
+    async downloadDocument(docId: number, filename: string): Promise<void> {
+        try {
+            const response = await request.get(`/doc/${docId}/download`, {
+                responseType: 'blob'
+            })
+            
+            // Create blob URL and trigger download
+            const blob = new Blob([response as unknown as BlobPart])
+            const url = window.URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            link.href = url
+            link.download = filename
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            window.URL.revokeObjectURL(url)
+        } catch (error) {
+            console.error('Download failed:', error)
+            throw error
+        }
     },
 
     /**
