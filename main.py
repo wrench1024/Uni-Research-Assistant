@@ -9,6 +9,11 @@ from typing import List, Optional
 from fastapi.responses import StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
 app = FastAPI()
 
 # CORS configuration
@@ -21,7 +26,7 @@ app.add_middleware(
 )
 
 # Configuration - DeepSeek via OpenRouter
-API_KEY = "sk-50ILE6OztWw605v0Glev5cPJqgIxbXt5YkOn9Se4LRJJAXKy"
+API_KEY = os.getenv("DEEPSEEK_API_KEY")
 BASE_URL = "https://openrouter.fans/v1/chat/completions"
 MODEL_NAME = "deepseek-chat"
 

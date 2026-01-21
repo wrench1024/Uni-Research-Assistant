@@ -22,6 +22,17 @@ buildNumber.properties
 .gradle
 build/
 
+# ### Node.js (Frontend) ###
+node_modules/
+dist/
+dist-ssr/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
 # ### Python ###
 __pycache__/
 *.py[cod]
@@ -47,6 +58,8 @@ wheels/
 .venv/
 venv/
 ENV/
+.pytest_cache/
+.ipynb_checkpoints/
 
 # ### Docker ###
 data/
@@ -81,4 +94,6 @@ test*.txt
 dl*.txt
 downloaded_*.txt
 *.tmp
+backend/backend.log
+backend/logs/
 

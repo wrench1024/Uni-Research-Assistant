@@ -43,7 +43,7 @@ mybatis-plus:
 
 # JWT 配置
 jwt:
-  secret: uni-research-assistant-secret-key-2024-change-in-production-environment
+  secret: ${JWT_SECRET:uni-research-assistant-secret-key-2024-change-in-production-environment}
   expiration: 86400000  # 24小时（毫秒）
   header: Authorization
   prefix: Bearer 
@@ -67,6 +67,6 @@ logging:
 # MinIO 配置
 minio:
   endpoint: http://127.0.0.1:9000
-  access-key: minioadmin
-  secret-key: minioadmin
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin}
   bucket-name: uni-research-docs
