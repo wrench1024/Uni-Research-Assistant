@@ -4,12 +4,12 @@ services:
   # 1. MySQL 数据库
   mysql:
     image: mysql:8.0
-    container_name: inkflow-mysql
+    container_name: uni-research-mysql
     ports:
-      - "3307:3306"  # 改为3307避免与本地MySQL冲突
+      - "3307:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: root  # 密码设简单点，毕设不是生产环境
-      MYSQL_DATABASE: inkflow_db
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: uni_research_db
     command: --default-authentication-plugin=mysql_native_password
     volumes:
       - ./data/mysql:/var/lib/mysql # 数据挂载到本地，防止重启容器数据丢失
@@ -17,7 +17,7 @@ services:
   # 2. Redis 缓存
   redis:
     image: redis:7.0
-    container_name: inkflow-redis
+    container_name: uni-research-redis
     ports:
       - "6379:6379"
     command: redis-server --requirepass root # 简单的密码
@@ -26,7 +26,7 @@ services:
   # 如果复试面试官问，你就说pgvector运维成本低，且支持关系型+向量混合查询
   pgvector:
     image: pgvector/pgvector:pg16
-    container_name: inkflow-vector
+    container_name: uni-research-vector
     ports:
       - "5432:5432"
     environment:
@@ -40,7 +40,7 @@ services:
   # 如果觉得太复杂，毕设可以直接存本地磁盘，把这块删掉
   minio:
     image: minio/minio
-    container_name: inkflow-minio
+    container_name: uni-research-minio
     ports:
       - "9000:9000"
       - "9001:9001"

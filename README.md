@@ -105,8 +105,25 @@ docker-compose up -d
 > [!NOTE]
 > 默认映射端口：MySQL (3307), Redis (6379), PostgreSQL (5432), MinIO (9000/9001)。
 
-### 3. 下一步计划
-详细开发进度请参考 [docs/task.md](docs/task.md) 和 [docs/implementation_plan.md](docs/implementation_plan.md)。
+### 3. 运行后端服务
+```bash
+cd backend
+mvn spring-boot:run
+```
+或在 IDE 中直接运行 `UniResearchApplication.java`
+
+### 4. 验证安装
+```powershell
+# 运行系统测试（15个测试用例）
+.\scripts\system-test.ps1
+```
+
+访问 API 文档: http://localhost:8080/api/doc.html
+
+### 5. 查看详细文档
+- **项目结构**: [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
+- **开发任务**: [docs/task.md](docs/task.md)
+- **开发历程**: [docs/walkthrough.md](docs/walkthrough.md)
 
 ---
 

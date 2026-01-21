@@ -3,6 +3,11 @@ spring:
     active: dev
   application:
     name: uni-research-assistant
+  http:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
 
 server:
   port: 8080

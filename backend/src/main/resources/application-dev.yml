@@ -1,8 +1,8 @@
 spring:
-  # 数据源配置（MySQL 端口 3307）
+  # 数据源配置（MySQL 端口 3306）
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3307/uni_research_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
+    url: jdbc:mysql://127.0.0.1:3307/uni_research_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
     username: root
     password: root
     hikari:
@@ -15,7 +15,7 @@ spring:
   # Redis 配置
   data:
     redis:
-      host: localhost
+      host: 127.0.0.1
       port: 6379
       password: root
       database: 0
@@ -63,3 +63,10 @@ logging:
     com.baomidou.mybatisplus: debug
   pattern:
     console: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n'
+
+# MinIO 配置
+minio:
+  endpoint: http://127.0.0.1:9000
+  access-key: minioadmin
+  secret-key: minioadmin
+  bucket-name: uni-research-docs

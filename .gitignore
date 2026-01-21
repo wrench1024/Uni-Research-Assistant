@@ -75,3 +75,10 @@ data/
 # ### System ###
 .DS_Store
 Thumbs.db
+
+# ### Temporary Files ###
+test*.txt
+dl*.txt
+downloaded_*.txt
+*.tmp
+

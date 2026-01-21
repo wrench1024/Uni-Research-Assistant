@@ -3,7 +3,7 @@ package com.uni.research.common.config;
 import com.baomidou.mybatisplus.annotation.DbType;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
-// import org.mybatis.spring.annotation.MapperScan;  // 暂时注释
+import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -27,7 +27,7 @@ import org.springframework.context.annotation.Configuration;
  * @since 2026-01-02
  */
 @Configuration
-// @MapperScan("com.uni.research.module.*.mapper")  // 暂时注释，等创建 Mapper 后再启用
+@MapperScan("com.uni.research.module.*.mapper")
 public class MyBatisPlusConfig {
     
     /**

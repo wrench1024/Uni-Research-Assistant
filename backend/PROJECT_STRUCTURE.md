@@ -130,7 +130,7 @@ com/uni/research/module/chat/
 
 ### MySQL 连接
 - **数据库名**: `uni_research_db`
-- **端口**: 3307 (避免与本地 MySQL 冲突)
+- **端口**: 3307 (释放本地 MySQL 占用即可)
 - **用户名**: root
 - **密码**: root
 
