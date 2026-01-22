@@ -50,16 +50,17 @@
 - [ ] Final System Testing
 
 ## Phase 8: RAG & Knowledge Base Implementation
-- [ ] **Infrastructure**: Verify `pgvector` configuration in docker-compose
-- [ ] **Python AI Service**:
-    - [ ] Install dependencies (`langchain`, `psycopg2`, `sentence-transformers`)
-    - [ ] Implement PDF/Markdown text extraction
-    - [ ] Implement Text Chunking & Embedding logic
-    - [ ] Create API endpoint `/api/v1/ingest` (Document -> Vectors)
-    - [ ] Update `/api/v1/chat/stream` to support Context Retrieval
-- [ ] **Java Backend**:
-    - [ ] Create `RagController` to bridge frontend and Python service
-    - [ ] Trigger ingestion when file is uploaded (Open Feign or RestTemplate)
+- [x] **Infrastructure**: Verify `pgvector` configuration in docker-compose
+- [x] **Python AI Service**:
+    - [x] Install dependencies (`langchain`, `psycopg2`, `sentence-transformers`)
+    - [x] Implement PDF/Markdown text extraction
+    - [x] Implement Text Chunking & Embedding logic
+    - [x] Create API endpoint `/api/v1/ingest` (Document -> Vectors)
+    - [x] Update `/api/v1/chat/stream` to support Context Retrieval
+    - [x] Add timeout handling (connect: 10s, read: 120s)
+- [x] **Java Backend**:
+    - [x] Create `RagService` to call Python ingest API
+    - [x] Trigger ingestion automatically when file is uploaded
 - [ ] **Frontend**:
     - [ ] Add "Indexing Status" column in Document List
     - [ ] Add "Search/RAG" toggle in Chat Interface (Optional)

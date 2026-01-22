@@ -91,6 +91,16 @@ export const chatAPI = {
         return request.put(`/chat/session/${sessionId}`, null, {
             params: { title }
         })
+    },
+
+    /**
+     * Rollback chat history (delete last N messages)
+     * Backend: POST /chat/session/{sessionId}/rollback?count=N
+     */
+    rollbackHistory(sessionId: number, count: number): Promise<any> {
+        return request.post(`/chat/session/${sessionId}/rollback`, null, {
+            params: { count }
+        })
     }
 }
 

@@ -88,9 +88,9 @@
             />
           </div>
           <div class="header-actions">
-            <el-tag v-if="chatStore.isStreaming" type="primary" size="small" class="streaming-tag">
-              <el-icon class="is-loading"><Loading /></el-icon> 正在生成
-            </el-tag>
+          <div class="header-actions">
+            <!-- 移除 "正在生成" 标签 -->
+          </div>
           </div>
         </div>
       </div>
@@ -128,10 +128,10 @@
               :class="message.role"
             >
               <div class="avatar-container">
-                <el-avatar v-if="message.role === 'user'" :size="32" class="user-avatar">
+                <el-avatar v-if="message.role === 'user'" :size="42" class="user-avatar">
                   <el-icon><User /></el-icon>
                 </el-avatar>
-                <el-avatar v-else :size="32" class="ai-avatar">
+                <el-avatar v-else :size="42" class="ai-avatar">
                   <el-icon><Cpu /></el-icon>
                 </el-avatar>
               </div>
@@ -141,10 +141,62 @@
                   <span class="bot-name">AI Assistant</span>
                 </div>
                 <div 
-                  class="message-bubble"
-                  :class="{ 'markdown-body': message.role === 'assistant' }"
-                  v-html="message.role === 'user' ? message.content : renderMarkdown(message.content || '正在深度思考中...')"
-                ></div>
+                  class="message-bubble-container"
+                  @mouseenter="hoveredMessageIndex = index"
+                  @mouseleave="hoveredMessageIndex = null"
+                >
+                  <div 
+                    class="message-bubble"
+                    :class="{ 'markdown-body': message.role === 'assistant' }"
+                    v-html="message.role === 'user' ? message.content : renderMarkdown(message.content || '正在深度思考中...')"
+                  ></div>
+                  <!-- 悬浮操作按钮 -->
+                  <div 
+                    class="bubble-actions" 
+                    v-show="hoveredMessageIndex === index && !chatStore.isStreaming"
+                  >
+                    <template v-if="message.role === 'user'">
+                      <el-tooltip content="修改" placement="top">
+                        <el-button 
+                          link 
+                          class="bubble-action-btn"
+                          @click="handleEditMessage(index, message.content)"
+                        >
+                          <el-icon><EditPen /></el-icon>
+                        </el-button>
+                      </el-tooltip>
+                      <el-tooltip content="复制" placement="top">
+                        <el-button 
+                          link 
+                          class="bubble-action-btn"
+                          @click="handleCopyMessage(message.content)"
+                        >
+                          <el-icon><CopyDocument /></el-icon>
+                        </el-button>
+                      </el-tooltip>
+                    </template>
+                    <template v-else>
+                      <el-tooltip content="重试" placement="top">
+                        <el-button 
+                          link 
+                          class="bubble-action-btn"
+                          @click="handleRetryMessage(index)"
+                        >
+                          <el-icon><RefreshRight /></el-icon>
+                        </el-button>
+                      </el-tooltip>
+                      <el-tooltip content="复制" placement="top">
+                        <el-button 
+                          link 
+                          class="bubble-action-btn"
+                          @click="handleCopyMessage(message.content)"
+                        >
+                          <el-icon><CopyDocument /></el-icon>
+                        </el-button>
+                      </el-tooltip>
+                    </template>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -180,7 +232,7 @@
             placeholder="问我任何问题... (Shift + Enter 换行，Ctrl + Enter 发送)"
             resize="none"
             class="main-input"
-            @keydown.ctrl.enter="handleSendMessage"
+            @keydown="handleInputKeydown"
           />
           <div class="send-action">
             <el-button
@@ -226,7 +278,7 @@ import { ref, nextTick, watch, computed, onMounted } from 'vue'
 import { useChatStore } from '@/stores/chatStore'
 import { 
   Plus, User, Cpu, Top, CircleClose, Loading,
-  MagicStick, Pointer, ChatRound, Delete, EditPen, RefreshRight
+  MagicStick, Pointer, ChatRound, Delete, EditPen, RefreshRight, CopyDocument
 } from '@element-plus/icons-vue'
 import type { ScrollbarInstance } from 'element-plus'
 import MarkdownIt from 'markdown-it'
@@ -268,6 +320,7 @@ const renameDialogVisible = ref(false)
 const renameTitle = ref('')
 const renaming = ref(false)
 const targetSessionId = ref<number | null>(null)
+const hoveredMessageIndex = ref<number | null>(null)
 
 // Computed
 const currentSession = computed(() => {
@@ -354,6 +407,82 @@ const handleStopGeneration = () => {
 
 const handleQuickPrompt = (prompt: string) => {
   inputMessage.value = prompt
+}
+
+// 处理输入框按键：Enter发送，Shift+Enter换行
+const handleInputKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault()
+    handleSendMessage()
+  }
+  // Shift+Enter 会自动换行，不需要处理
+}
+
+// 复制消息内容
+const handleCopyMessage = async (content: string) => {
+  try {
+    await navigator.clipboard.writeText(content)
+    ElMessage.success('已复制到剪贴板')
+  } catch (err) {
+    ElMessage.error('复制失败')
+  }
+}
+
+// 修改用户消息：将内容填入输入框，并删除该消息及之后的所有消息
+const handleEditMessage = async (index: number, content: string) => {
+  inputMessage.value = content
+  
+  // Calculate how many messages to rollback (from index to end)
+  const count = chatStore.messages.length - index
+  
+  // Update UI first for responsiveness
+  chatStore.messages.splice(index)
+  
+  // Sync with backend
+  await chatStore.rollbackMessages(count)
+  
+  ElMessage.info('已将消息内容复制到输入框，可修改后重新发送')
+}
+
+// 重试AI回复：重新生成回复，不添加新的用户消息
+const handleRetryMessage = async (index: number) => {
+  // 找到对应的用户消息（AI消息的前一条）
+  if (index > 0 && chatStore.messages[index - 1]?.role === 'user') {
+    const userMessage = chatStore.messages[index - 1]?.content
+    if (!userMessage) return
+    
+    // Rollback last 2 messages (User + AI) on backend
+    // Since we are retrying, we want the backend to forget the last exchange
+    // But on frontend we only remove the AI answer effectively (and re-add user message logic is handled by backend streamChat which saves it again)
+    // Wait... streamChat saves the user message provided in `content`.
+    // So if we just delete the AI answer on frontend, but on backend we have (User, AI).
+    // If we call streamChat(userMessage), backend will save (User, AI).
+    // Result: (User, AI, User, AI). Duplicate user message.
+    
+    // Correct Logic:
+    // 1. Rollback last 2 messages on backend (The previous User-AI pair).
+    // 2. On frontend, remove last 2 messages (The previous User-AI pair).
+    // 3. Call `sendMessage(userMessage)` which adds User msg to UI and calls backend.
+    
+    // Let's adjust the UI logic to match this cleaner flow.
+    
+    // Correct Logic:
+    // 1. Remove last 2 messages locally immediately for UI responsiveness
+    chatStore.messages.splice(index - 1, 2)
+    
+    // 2. Sync backend (delete last 2)
+    // We await this to ensure backend state is consistent before sending new msg
+    // But we catch errors to ensure we still try to resend even if rollback fails
+    try {
+      await chatStore.rollbackMessages(2)
+    } catch (e) {
+      console.error('Rollback failed during retry:', e)
+    }
+    
+    // 3. Resend as a new message directly using store action
+    // Do not use handleSendMessage() as it depends on inputMessage binding which might be glitchy in this flow
+    await chatStore.sendMessage(userMessage)
+  }
 }
 
 const scrollToBottom = () => {
@@ -656,7 +785,7 @@ const scrollToBottom = () => {
 .message-row {
   display: flex;
   gap: 20px; /* Increased back from 16 */
-  margin-bottom: 40px;
+  margin-bottom: 12px;
 }
 
 .message-row.user {
@@ -694,6 +823,109 @@ const scrollToBottom = () => {
   letter-spacing: 1px;
 }
 
+/* 消息气泡容器 - 用于悬浮效果 */
+.message-bubble-container {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  border-radius: 20px;
+  /* 扩展hover区域，让鼠标可以移动到悬浮按钮 */
+  padding-bottom: 8px;
+  margin-bottom: -8px;
+}
+
+/* 悬浮时的光效边框 */
+.message-bubble-container::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #007aff22, #00c6ff22, #007aff22);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: -1;
+}
+
+.message-bubble-container:hover::before {
+  opacity: 1;
+}
+
+.message-bubble-container:hover .message-bubble {
+  box-shadow: 0 8px 32px rgba(0, 122, 255, 0.12);
+  transform: translateY(-0px);
+}
+
+.message-row.user .message-bubble-container:hover .message-bubble {
+  box-shadow: 0 8px 32px rgba(51, 65, 85, 0.15);
+}
+
+/* 悬浮操作按钮 - 玻璃拟态风格 */
+.bubble-actions {
+  position: absolute;
+  bottom: -48px;
+  left: 0;
+  display: flex;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 122, 255, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+  z-index: 10;
+  animation: bubbleActionsIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* 扩展悬浮按钮的交互热区 */
+.bubble-actions::after {
+  content: '';
+  position: absolute;
+  top: -20px;
+  bottom: -20px;
+  left: -20px;
+  right: -20px;
+  z-index: -1;
+}
+
+.message-row.user .bubble-actions {
+  left: auto;
+  right: 0;
+}
+
+@keyframes bubbleActionsIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(-8px) scale(0.9); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0) scale(1); 
+  }
+}
+
+.bubble-action-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b !important;
+  border-radius: 8px !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.bubble-action-btn:hover {
+  color: #007aff !important;
+  background: linear-gradient(135deg, #f0f7ff 0%, #e0f0ff 100%) !important;
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.2);
+}
+
+.bubble-action-btn:active {
+  transform: scale(0.95);
+}
+
 .message-bubble {
   padding: 18px 28px; /* High horizontal padding for internal spacing */
   border-radius: 20px;
@@ -701,13 +933,13 @@ const scrollToBottom = () => {
   line-height: 1.7;
   position: relative;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
-  transition: background 0.2s;
+  transition: all 0.2s;
 }
 
 .message-row.assistant .message-bubble {
-  background: #f8fafc;
+  background: #f0f7ff;
   color: #1e293b;
-  border: 1px solid #edf2f7;
+  border: 1px solid #e0eeff;
   border-top-left-radius: 4px;
 }
 

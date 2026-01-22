@@ -282,6 +282,20 @@ export const useChatStore = defineStore('chat', () => {
         return false
     }
 
+    /**
+     * Rollback messages (delete last N messages)
+     */
+    async function rollbackMessages(count: number) {
+        if (!currentSessionId.value) return false
+        try {
+            const response = await chatAPI.rollbackHistory(currentSessionId.value, count)
+            return response.code === 200
+        } catch (error) {
+            console.error('Failed to rollback messages:', error)
+            return false
+        }
+    }
+
     return {
         // State
         currentSessionId,
@@ -297,6 +311,7 @@ export const useChatStore = defineStore('chat', () => {
         updateSessionTitle,
         loadSessionMessages,
         createNewSession,
-        clearSession
+        clearSession,
+        rollbackMessages
     }
 })

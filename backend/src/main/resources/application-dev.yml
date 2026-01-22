@@ -11,6 +11,13 @@ spring:
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000
+  
+  # 文件上传配置
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 50MB      # 单文件最大 50MB
+      max-request-size: 100MB  # 请求最大 100MB
     
   # Redis 配置
   data:

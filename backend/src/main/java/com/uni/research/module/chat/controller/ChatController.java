@@ -83,6 +83,16 @@ public class ChatController {
         return Result.success(null);
     }
 
+    /**
+     * 回滚历史消息（删除最近N条）
+     */
+    @PostMapping("/session/{sessionId}/rollback")
+    public Result<Void> rollbackHistory(@PathVariable Long sessionId, @RequestParam Integer count) {
+        Long userId = getUserId();
+        chatService.rollbackHistory(sessionId, userId, count);
+        return Result.success(null);
+    }
+
     @GetMapping("/session/{sessionId}/messages")
     public Result<List<ChatMessage>> getHistory(@PathVariable Long sessionId) {
         Long userId = getUserId();

@@ -17,6 +17,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -111,6 +112,12 @@ public class ChatServiceImpl implements ChatService {
                 userMsg.setContent(content);
                 messageMapper.insert(userMsg);
 
+                // Update session update_time to bring it to top
+                ChatSession sessionUpdate = new ChatSession();
+                sessionUpdate.setId(finalSessionId);
+                sessionUpdate.setUpdateTime(LocalDateTime.now());
+                sessionMapper.updateById(sessionUpdate);
+
                 // 3. Get Chat History for context
                 List<ChatMessage> history = messageMapper.selectList(new LambdaQueryWrapper<ChatMessage>()
                         .eq(ChatMessage::getSessionId, finalSessionId)
@@ -173,6 +180,12 @@ public class ChatServiceImpl implements ChatService {
                     aiMsg.setContent(finalContent);
                     messageMapper.insert(aiMsg);
 
+                    // Update session update_time again after AI responds
+                    ChatSession sessionUpdateFinal = new ChatSession();
+                    sessionUpdateFinal.setId(finalSessionId);
+                    sessionUpdateFinal.setUpdateTime(LocalDateTime.now());
+                    sessionMapper.updateById(sessionUpdateFinal);
+
                     emitter.complete();
                 }
 
@@ -219,5 +232,31 @@ public class ChatServiceImpl implements ChatService {
         }
         session.setTitle(title);
         sessionMapper.updateById(session);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void rollbackHistory(Long sessionId, Long userId, Integer count) {
+        if (count == null || count <= 0)
+            return;
+
+        ChatSession session = sessionMapper.selectById(sessionId);
+        if (session == null || !session.getUserId().equals(userId)) {
+            throw new RuntimeException("会话不存在或无权访问");
+        }
+
+        // 1. Get IDs of the last N messages
+        List<ChatMessage> messagesToDelete = messageMapper.selectList(new LambdaQueryWrapper<ChatMessage>()
+                .eq(ChatMessage::getSessionId, sessionId)
+                .orderByDesc(ChatMessage::getCreateTime)
+                .last("LIMIT " + count));
+
+        if (messagesToDelete.isEmpty())
+            return;
+
+        List<Long> ids = messagesToDelete.stream().map(ChatMessage::getId).toList();
+
+        // 2. Delete them
+        messageMapper.deleteBatchIds(ids);
     }
 }

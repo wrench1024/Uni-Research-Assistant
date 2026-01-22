@@ -60,4 +60,13 @@ public interface ChatService {
      * @param title     新标题
      */
     void updateSessionTitle(Long sessionId, Long userId, String title);
+
+    /**
+     * 回滚会话历史（删除最后N条消息）
+     * 
+     * @param sessionId 会话ID
+     * @param userId    用户ID
+     * @param count     要删除的消息数量
+     */
+    void rollbackHistory(Long sessionId, Long userId, Integer count);
 }

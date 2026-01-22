@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.uni.research.common.exception.BizException;
 import com.uni.research.common.service.MinioService;
+import com.uni.research.common.service.RagService;
 import com.uni.research.module.auth.entity.User;
 import com.uni.research.module.auth.mapper.UserMapper;
 import com.uni.research.module.doc.dto.DocumentQueryDto;
@@ -25,7 +26,10 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.util.StringUtils;
 
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -35,6 +39,10 @@ public class DocumentServiceImpl extends ServiceImpl<DocumentMapper, Document> i
 
     private final MinioService minioService;
     private final UserMapper userMapper;
+    private final RagService ragService;
+
+    // 支持 RAG 索引的文件类型
+    private static final Set<String> RAG_SUPPORTED_TYPES = Set.of("pdf", "md", "txt", "text", "doc", "docx");
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -66,12 +74,38 @@ public class DocumentServiceImpl extends ServiceImpl<DocumentMapper, Document> i
         doc.setFilePath(objectName);
         doc.setFileSize(file.getSize());
         doc.setFileType(suffix);
-        doc.setStatus(0); // 0-Pending
+        doc.setStatus(0); // 0-Pending indexing
         doc.setDeleted(0);
 
         this.save(doc);
 
+        // 5. 触发异步 RAG 索引（仅支持的文件类型）
+        if (suffix != null && RAG_SUPPORTED_TYPES.contains(suffix.toLowerCase())) {
+            triggerRagIndexing(file, doc.getId().toString(), originalFilename);
+        }
+
         return BeanUtil.copyProperties(doc, DocumentVo.class);
+    }
+
+    /**
+     * 异步触发 RAG 索引
+     * 将上传的文件保存到临时目录，然后调用 Python 服务进行向量化
+     */
+    private void triggerRagIndexing(MultipartFile file, String docId, String fileName) {
+        try {
+            // 保存到临时文件
+            String suffix = FileUtil.extName(fileName);
+            Path tempFile = Files.createTempFile("rag_", "." + suffix);
+            file.transferTo(tempFile.toFile());
+
+            // 异步调用 RAG 服务
+            ragService.triggerDocumentIngestion(tempFile.toAbsolutePath().toString(), docId);
+
+            log.info("已触发 RAG 索引: docId={}, tempFile={}", docId, tempFile);
+        } catch (Exception e) {
+            log.error("触发 RAG 索引失败: docId={}, error={}", docId, e.getMessage(), e);
+            // 不影响主流程，只记录日志
+        }
     }
 
     @Override
@@ -119,8 +153,12 @@ public class DocumentServiceImpl extends ServiceImpl<DocumentMapper, Document> i
         // 1. Delete from MinIO
         minioService.removeFile(doc.getFilePath());
 
-        // 2. Logic Delete in DB
+        // 2. Delete from DB
         this.removeById(id);
+
+        // 3. 异步删除向量数据库中的向量
+        ragService.deleteDocumentVectors(id.toString());
+        log.info("已触发向量删除: docId={}", id);
     }
 
     private User getCurrentUser() {
