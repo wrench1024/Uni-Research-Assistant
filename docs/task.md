@@ -47,7 +47,7 @@
 - [x] Download with JWT authentication
 - [x] Delete functionality
 - [x] Full flow verification
-- [ ] Final System Testing
+- [x] Final System Testing (Authentication, CRUD, Security)
 
 ## Phase 8: RAG & Knowledge Base Implementation
 - [x] **Infrastructure**: Verify `pgvector` configuration in docker-compose
@@ -61,6 +61,10 @@
 - [x] **Java Backend**:
     - [x] Create `RagService` to call Python ingest API
     - [x] Trigger ingestion automatically when file is uploaded
-- [ ] **Frontend**:
-    - [ ] Add "Indexing Status" column in Document List
-    - [ ] Add "Search/RAG" toggle in Chat Interface (Optional)
+- [x] **Frontend**:
+    - [x] AI Message Actions (Retry, Copy, Edit) with hover effects
+    - [x] Real-time stream processing with thinking indicator
+    - [x] Input optimizations (Enter to send, Shift+Enter for newline)
+    - [x] Persistence fix (Rollback backend history on retry/edit)
+    - [x] Visual enhancements (Avatar size, Bubble colors, Animations)
+    - [x] Added index column in document list (completed via modern UI update)

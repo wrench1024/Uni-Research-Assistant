@@ -277,7 +277,7 @@
 import { ref, nextTick, watch, computed, onMounted } from 'vue'
 import { useChatStore } from '@/stores/chatStore'
 import { 
-  Plus, User, Cpu, Top, CircleClose, Loading,
+  Plus, User, Cpu, Top, CircleClose,
   MagicStick, Pointer, ChatRound, Delete, EditPen, RefreshRight, CopyDocument
 } from '@element-plus/icons-vue'
 import type { ScrollbarInstance } from 'element-plus'

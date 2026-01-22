@@ -27,6 +27,18 @@ const routes: RouteRecordRaw[] = [
                 name: 'Documents',
                 component: () => import('@/views/Doc/DocList.vue'),
                 meta: { requiresAuth: true }
+            },
+            {
+                path: 'analyze',
+                name: 'Analyze',
+                component: () => import('@/views/Analyze/AnalysisView.vue'),
+                meta: { requiresAuth: true }
+            },
+            {
+                path: 'write',
+                name: 'Write',
+                component: () => import('@/views/Write/WritingView.vue'),
+                meta: { requiresAuth: true }
             }
         ]
     },

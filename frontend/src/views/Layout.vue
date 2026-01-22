@@ -20,6 +20,16 @@
           <el-icon><Document /></el-icon>
           <span>文档管理</span>
         </el-menu-item>
+
+        <el-menu-item index="/analyze">
+          <el-icon><DataLine /></el-icon>
+          <span>研读分析</span>
+        </el-menu-item>
+
+        <el-menu-item index="/write">
+          <el-icon><EditPen /></el-icon>
+          <span>写作助手</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
 
@@ -67,7 +77,9 @@ import {
   Document, 
   User, 
   ArrowDown, 
-  SwitchButton 
+  SwitchButton,
+  DataLine,
+  EditPen
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -80,7 +92,9 @@ const activeMenu = computed(() => route.path)
 const pageTitle = computed(() => {
   const titles: Record<string, string> = {
     '/chat': 'AI 智能对话',
-    '/documents': '文档管理'
+    '/documents': '文档管理',
+    '/analyze': '智能研读分析',
+    '/write': '学术写作助手'
   }
   return titles[route.path] || 'LLM Research Assistant'
 })

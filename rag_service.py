@@ -34,7 +34,7 @@ def get_embeddings():
         print(f"Loading embedding model: {EMBEDDING_MODEL}")
         _embeddings = HuggingFaceEmbeddings(
             model_name=EMBEDDING_MODEL,
-            model_kwargs={'device': 'cpu'},  # Use 'cuda' if GPU available
+            model_kwargs={'device': 'cuda'},  # Using CUDA for faster embeddings
             encode_kwargs={'normalize_embeddings': True}
         )
     return _embeddings
@@ -259,3 +259,56 @@ def delete_document_vectors(doc_id: str) -> dict:
             "message": str(e),
             "doc_id": doc_id
         }
+
+
+def get_document_chunks(doc_id: str) -> List[str]:
+    """
+    Retrieve all text chunks for a specific document, ordered by their index.
+    Used for full-document tasks like summarization.
+    
+    Args:
+        doc_id: The document ID to retrieve
+    
+    Returns:
+        List of text chunks
+    """
+    print(f"Retrieving all chunks for document: {doc_id}")
+    
+    try:
+        import psycopg2
+        from urllib.parse import urlparse
+        
+        # Parse connection string
+        parsed = urlparse(CONNECTION_STRING)
+        conn = psycopg2.connect(
+            host=parsed.hostname,
+            port=parsed.port or 5432,
+            database=parsed.path[1:],
+            user=parsed.username,
+            password=parsed.password
+        )
+        
+        cursor = conn.cursor()
+        
+        # Query to get document content, ordered by chunk_index
+        # Note: 'document' is the column name for the text content in langchain_pg_embedding
+        select_sql = """
+            SELECT document 
+            FROM langchain_pg_embedding 
+            WHERE cmetadata->>'doc_id' = %s 
+            ORDER BY CAST(cmetadata->>'chunk_index' AS INTEGER) ASC
+        """
+        cursor.execute(select_sql, (str(doc_id),))
+        rows = cursor.fetchall()
+        
+        chunks = [row[0] for row in rows]
+        
+        cursor.close()
+        conn.close()
+        
+        print(f"Successfully retrieved {len(chunks)} chunks for doc_id: {doc_id}")
+        return chunks
+        
+    except Exception as e:
+        print(f"Failed to retrieve chunks: {e}")
+        return []

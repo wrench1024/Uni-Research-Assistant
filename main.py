@@ -18,7 +18,7 @@ load_dotenv()
 
 # Import RAG service
 try:
-    from rag_service import ingest_document, search_context, build_rag_prompt, delete_document_vectors
+    from rag_service import ingest_document, search_context, build_rag_prompt, delete_document_vectors, get_document_chunks
     RAG_ENABLED = True
     print("RAG service loaded successfully")
 except ImportError as e:
@@ -36,9 +36,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configuration - DeepSeek via OpenRouter
+# Configuration - Official DeepSeek API
 API_KEY = os.getenv("DEEPSEEK_API_KEY")
-BASE_URL = "https://openrouter.fans/v1/chat/completions"
+BASE_URL = "https://api.deepseek.com/v1/chat/completions"
 MODEL_NAME = "deepseek-chat"
 
 # Models
@@ -56,6 +56,19 @@ class ChatRequest(BaseModel):
 class IngestRequest(BaseModel):
     file_path: str
     doc_id: Optional[str] = None
+
+class AnalysisRequest(BaseModel):
+    doc_id: str
+    type: str = "summary"  # summary, key_points
+
+class ComparisonRequest(BaseModel):
+    doc_ids: List[str]
+    aspects: Optional[List[str]] = None
+
+class WriteRequest(BaseModel):
+    text: str
+    instruction: str  # polish, expand, continue, fix_grammar
+    context: Optional[str] = None
 
 @app.get("/")
 def read_root():
@@ -171,79 +184,159 @@ async def stream_chat(request: ChatRequest):
         messages.append({"role": msg.role, "content": msg.content})
     messages.append({"role": "user", "content": request.message})
 
-    def call_api():
-        headers = {
-            "Authorization": f"Bearer {API_KEY}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://localhost:5173",
-            "X-Title": "LLM Research Assistant"
-        }
-        data = {
-            "model": MODEL_NAME,
-            "messages": messages,
-            "stream": True
-        }
-        try:
-            # 超时设置：(连接超时, 读取超时)
-            # 连接超时 10 秒，读取超时 120 秒（允许 LLM 生成长回复）
-            return requests.post(
-                BASE_URL, 
-                headers=headers, 
-                json=data, 
-                stream=True, 
-                timeout=(10, 120)
-            )
-        except requests.exceptions.ConnectTimeout:
-            print("Connection timeout: Cannot connect to LLM API")
-            raise Exception("连接超时：无法连接到 AI 服务，请稍后重试")
-        except requests.exceptions.ReadTimeout:
-            print("Read timeout: LLM response took too long")
-            raise Exception("响应超时：AI 回复时间过长，请尝试更简短的问题")
-        except requests.exceptions.ConnectionError:
-            print("Connection error: Network issue")
-            raise Exception("网络错误：无法连接到 AI 服务，请检查网络连接")
-        except Exception as e:
-            print(f"Request failed: {e}")
-            raise Exception(f"请求失败：{str(e)}")
+    return StreamingResponse(stream_llm_response(messages), media_type="text/event-stream")
 
+@app.post("/api/v1/analyze/summary")
+async def analyze_summary(request: AnalysisRequest):
+    """
+    Generate a summary for a specific document.
+    """
+    if not RAG_ENABLED:
+        raise HTTPException(status_code=503, detail="RAG service is not available")
+    
+    print(f"=== Generating summary for: {request.doc_id} ===")
+    
+    # 1. Get all text chunks
+    chunks = await run_in_threadpool(get_document_chunks, request.doc_id)
+    if not chunks:
+        raise HTTPException(status_code=404, detail=f"No content found for document: {request.doc_id}")
+    
+    # Simple strategy: Concatenate all chunks (truncate if too long) for now
+    # TODO: Implement Map-Reduce for very large docs
+    full_text = "\n\n".join(chunks)
+    
+    # Truncate to avoid context limit (approx 30k chars for ~8k tokens safety, DeepSeek supports 32k-128k but let's be safe)
+    if len(full_text) > 30000:
+        full_text = full_text[:30000] + "...(truncated)"
+    
+    # 2. Build Prompt
+    system_prompt = """你是一个专业的学术研究助手。请仔细阅读用户提供的文档内容，并生成一份高质量的摘要。
+摘要应包含：
+1. 核心研究问题
+2. 主要方法
+3. 关键发现与结论
+请使用 Markdown 格式，层级清晰。"""
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": f"请总结以下文档内容：\n\n{full_text}"}
+    ]
+    
+    # 3. Call LLM (Non-streaming for now, or streaming? Let's use streaming for better UX)
+    # Re-using the call_api logic pattern but tailored for this endpoint
+    
+    # ... Helper function to stream ...
+    return StreamingResponse(stream_llm_response(messages), media_type="text/event-stream")
+
+@app.post("/api/v1/analyze/comparison")
+async def analyze_comparison(request: ComparisonRequest):
+    """
+    Compare multiple documents.
+    """
+    if not RAG_ENABLED:
+        raise HTTPException(status_code=503, detail="RAG service is not available")
+        
+    doc_contents = []
+    for doc_id in request.doc_ids:
+        chunks = await run_in_threadpool(get_document_chunks, doc_id)
+        if chunks:
+            text = "\n\n".join(chunks)[:15000] # Limit each doc to ensure fit
+            doc_contents.append(f"【文档: {doc_id}】\n{text}")
+            
+    if not doc_contents:
+        raise HTTPException(status_code=404, detail="No content found for provided documents")
+        
+    combined_text = "\n\n====================\n\n".join(doc_contents)
+    
+    system_prompt = """你是一个专业的学术情报分析师。请对比阅读以下多篇文档，并进行深度对比分析。
+请重点关注：
+1. 各文档观点的异同
+2. 研究方法的区别
+3. 结论的互补性或冲突
+请生成一份结构化的对比报告。"""
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": f"请对比以下文档：\n\n{combined_text}"}
+    ]
+    
+    return StreamingResponse(stream_llm_response(messages), media_type="text/event-stream")
+
+@app.post("/api/v1/write/process")
+async def write_process(request: WriteRequest):
+    """
+    Process text for writing assistance (polish, expand, etc).
+    """
+    instruction_map = {
+        "polish": "请润色以下文本，使其更加学术化、正式且流畅，修正语法错误，但保持原意：",
+        "expand": "请对以下观点进行扩写，补充更多细节、论据或背景信息，使其内容更充实：",
+        "continue": "请根据以下上文，续写一段逻辑连贯的内容：",
+        "fix_grammar": "请检查并修正以下文本的语法和拼写错误，输出修正后的版本："
+    }
+    
+    specific_instruction = instruction_map.get(request.instruction, "请处理以下文本：")
+    
+    system_prompt = "你是一个资深的学术写作导师，旨在帮助用户写出高水平的学术文章。"
+    
+    # Build user message with optional context
+    user_message = f"{specific_instruction}\n\n【用户文本】\n{request.text}"
+    
+    # Include user's custom context/requirements if provided
+    if request.context and request.context.strip():
+        user_message += f"\n\n【额外要求】\n请务必遵循以下额外要求：{request.context}"
+    
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_message}
+    ]
+    
+    return StreamingResponse(stream_llm_response(messages), media_type="text/event-stream")
+
+# Helper to avoid code duplication
+def stream_llm_response(messages):
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://localhost:5173",
+        "X-Title": "LLM Research Assistant"
+    }
+    data = {
+        "model": MODEL_NAME,
+        "messages": messages,
+        "stream": True
+    }
     try:
-        response = await run_in_threadpool(call_api)
+        # Timeout: (Connect, Read)
+        response = requests.post(BASE_URL, headers=headers, json=data, stream=True, timeout=(10, 180))
+        if response.status_code != 200:
+             yield f"data: Error: API returned {response.status_code}\n\n"
+             yield "data: [DONE]\n\n"
+             return
+
+        for line in response.iter_lines():
+            if line:
+                decoded = line.decode('utf-8')
+                if decoded.startswith("data: "):
+                    data_str = decoded[6:]
+                    
+                    if data_str.strip() == "[DONE]":
+                        yield "data: [DONE]\n\n"
+                        break
+                    
+                    try:
+                        data_json = json.loads(data_str)
+                        if "choices" in data_json and len(data_json["choices"]) > 0:
+                            delta = data_json["choices"][0].get("delta", {})
+                            content = delta.get("content", "")
+                            if content:
+                                # Send plain text, escape newlines for SSE
+                                escaped = content.replace('\n', '\\n')
+                                yield f"data: {escaped}\n\n"
+                    except json.JSONDecodeError:
+                        pass
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to connect: {str(e)}")
-
-    if response.status_code != 200:
-        error_text = response.text
-        print(f"API Error: {response.status_code} - {error_text}")
-        raise HTTPException(status_code=response.status_code, detail=error_text)
-
-    async def generate():
-        try:
-            for line in response.iter_lines():
-                if line:
-                    decoded = line.decode('utf-8')
-                    if decoded.startswith("data: "):
-                        data_str = decoded[6:]
-                        
-                        if data_str.strip() == "[DONE]":
-                            yield "data: [DONE]\n\n"
-                            break
-                        
-                        try:
-                            data_json = json.loads(data_str)
-                            if "choices" in data_json and len(data_json["choices"]) > 0:
-                                delta = data_json["choices"][0].get("delta", {})
-                                content = delta.get("content", "")
-                                if content:
-                                    # Send plain text, escape newlines as \\n for SSE compatibility
-                                    escaped = content.replace('\n', '\\n')
-                                    yield f"data: {escaped}\n\n"
-                        except json.JSONDecodeError:
-                            pass
-        except Exception as e:
-            yield f"data: Error: {str(e)}\n\n"
-            yield "data: [DONE]\n\n"
-
-    return StreamingResponse(generate(), media_type="text/event-stream")
+        yield f"data: Error: {str(e)}\n\n"
+        yield "data: [DONE]\n\n"
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
