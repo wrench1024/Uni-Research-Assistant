@@ -147,6 +147,9 @@ public class ChatServiceImpl implements ChatService {
                         .post(body)
                         .build();
 
+                // Variable to hold citations if any
+                final String[] citationsJson = { null };
+
                 try (Response response = client.newCall(request).execute()) {
                     if (!response.isSuccessful()) {
                         log.error("Python service returned error: {}", response.code());
@@ -165,6 +168,22 @@ public class ChatServiceImpl implements ChatService {
                                 emitter.send(SseEmitter.event().data("[DONE]"));
                                 break;
                             }
+
+                            // Check for citation event
+                            if (data.trim().startsWith("{\"type\": \"citation\"")) {
+                                try {
+                                    Map<String, Object> eventMap = objectMapper.readValue(data, Map.class);
+                                    if (eventMap.containsKey("citations")) {
+                                        citationsJson[0] = objectMapper.writeValueAsString(eventMap.get("citations"));
+                                    }
+                                } catch (Exception e) {
+                                    log.warn("Failed to parse citation event: {}", e.getMessage());
+                                }
+                                // Forward citation event to frontend
+                                emitter.send(SseEmitter.event().data(data));
+                                continue; // Do not append to fullResponse content
+                            }
+
                             fullResponse.append(data);
                             // Forward to frontend
                             emitter.send(SseEmitter.event().data(data));
@@ -178,6 +197,9 @@ public class ChatServiceImpl implements ChatService {
                     // Unescape newlines before saving to DB
                     String finalContent = fullResponse.toString().replace("\\n", "\n");
                     aiMsg.setContent(finalContent);
+                    if (citationsJson[0] != null) {
+                        aiMsg.setCitations(citationsJson[0]);
+                    }
                     messageMapper.insert(aiMsg);
 
                     // Update session update_time again after AI responds

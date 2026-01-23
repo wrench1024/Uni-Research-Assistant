@@ -27,16 +27,17 @@
 - **对象存储**：集成 MinIO。
 - **安全保障**：全 API 覆盖 JWT 认证，支持大文件上传（单文件 50MB）。
 
-### 4. 📝 智能研读与写作 (New)
-- **深度对比**：支持多篇文献的横向深度对比分析。
-- **写作助手**：内置学术模版，支持润色、扩写、续写、语法纠错。
-- **GPU 加速**：支持 NVIDIA GPU (CUDA 12.1) 加速本地 RAG 检索。
+### 4. 📝 智能研读与写作 (Enhanced)
+- **多文档对比**：结构化生成对比表格，支持多维度深度分析。
+- **混合检索 (RAG+)**：结合 BM25 关键词检索与向量语义检索，提升专业术语匹配精度。
+- **引用生成**：自动提取元数据，生成 BibTeX 和 EndNote (RIS) 标准引用格式。
+- **笔记管理**：支持阅读时的即时标注和笔记管理，支持标签系统。
 
 ## 🏗️ 架构概览
 
 - **Frontend**: Vue 3 + TypeScript + Element Plus + Pinia
 - **Backend**: Spring Boot 3 + MyBatis-Plus + MySQL + Redis + MinIO
-- **AI Service**: FastAPI + LangChain + Gemini 2.0 Flash + PGVector
+- **AI Service**: FastAPI + LangChain + Gemini 2.0 Flash + PGVector + BM25/RRF
 - **Infrastructure**: Docker Compose 一键启动中间件
 
 ## 🚀 快速开始

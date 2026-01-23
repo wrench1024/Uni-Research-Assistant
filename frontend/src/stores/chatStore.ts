@@ -111,15 +111,18 @@ export const useChatStore = defineStore('chat', () => {
                                 break
                             }
                             if (data) {
-                                // Check for sessionId (first event from backend)
-                                if (data.startsWith('{"sessionId":')) {
+                                // Check for valid JSON (Session ID or Citation)
+                                if (data.startsWith('{')) {
                                     try {
                                         const parsed = JSON.parse(data)
                                         if (parsed.sessionId) {
                                             currentSessionId.value = parsed.sessionId
+                                        } else if (parsed.type === 'citation' && parsed.citations) {
+                                            // Handle citation event
+                                            assistantMessage.citations = parsed.citations
                                         }
                                     } catch {
-                                        // Not sessionId, treat as content
+                                        // Not valid JSON, treat as content (rare case if it starts with { but isn't json)
                                         const unescaped = data.replace(/\\n/g, '\n')
                                         assistantMessage.content += unescaped
                                     }
@@ -222,7 +225,19 @@ export const useChatStore = defineStore('chat', () => {
         try {
             const response = await chatAPI.getSessionMessages(sessionId)
             if (response.code === 200 && response.data) {
-                messages.value = response.data
+                // Parse citations if they are strings
+                const loadedMessages = response.data.map((msg: ChatMessage) => {
+                    if (msg.citations && typeof msg.citations === 'string') {
+                        try {
+                            msg.citations = JSON.parse(msg.citations)
+                        } catch (e) {
+                            console.warn('Failed to parse citations for message', msg.id)
+                            msg.citations = []
+                        }
+                    }
+                    return msg
+                })
+                messages.value = loadedMessages
                 currentSessionId.value = sessionId
             }
         } catch (error) {

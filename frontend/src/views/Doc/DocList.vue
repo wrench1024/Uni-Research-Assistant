@@ -49,10 +49,16 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="320" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" :icon="Download" link @click="handleDownload(row)">
               下载
+            </el-button>
+            <el-button type="warning" size="small" :icon="EditPen" link @click="handleShowNotes(row)">
+              笔记
+            </el-button>
+            <el-button type="success" size="small" :icon="Document" link @click="handleShowCitation(row)">
+              引用
             </el-button>
             <el-popconfirm
               title="确定要删除这个文档吗？"
@@ -72,20 +78,42 @@
         </template>
       </el-table>
     </el-card>
+
+    <!-- Citation Dialog -->
+    <CitationDialog
+      v-model:visible="citationDialogVisible"
+      :document-id="selectedDocId"
+      @saved="loadDocuments"
+    />
+
+    <!-- Note Panel Drawer -->
+    <el-drawer
+      v-model="noteDrawerVisible"
+      title="文档笔记"
+      size="450px"
+      direction="rtl"
+    >
+      <NotePanel v-if="noteDrawerVisible" :doc-id="selectedDocId" />
+    </el-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { docAPI, type DocumentInfo } from '@/api/doc'
-import { Upload, Download, Delete, Document, Picture, VideoCamera, FolderOpened } from '@element-plus/icons-vue'
+import { Upload, Download, Delete, Document, Picture, VideoCamera, FolderOpened, EditPen } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import CitationDialog from '@/components/CitationDialog.vue'
+import NotePanel from '@/components/NotePanel.vue'
 
 // State
 const documents = ref<DocumentInfo[]>([])
 const loading = ref(false)
 const uploading = ref(false)
 const uploadProgress = ref(0)
+const citationDialogVisible = ref(false)
+const noteDrawerVisible = ref(false)
+const selectedDocId = ref(0)
 
 // Get file icon based on file type
 const getFileIcon = (fileType?: string) => {
@@ -240,6 +268,18 @@ const handleDelete = async (docId: number) => {
     console.error('Delete failed:', error)
     ElMessage.error('删除失败')
   }
+}
+
+// Show citation dialog
+const handleShowCitation = (doc: DocumentInfo) => {
+  selectedDocId.value = doc.id
+  citationDialogVisible.value = true
+}
+
+// Show note panel
+const handleShowNotes = (doc: DocumentInfo) => {
+  selectedDocId.value = doc.id
+  noteDrawerVisible.value = true
 }
 
 // Format file size

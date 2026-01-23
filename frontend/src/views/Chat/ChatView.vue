@@ -150,6 +150,29 @@
                     :class="{ 'markdown-body': message.role === 'assistant' }"
                     v-html="message.role === 'user' ? message.content : renderMarkdown(message.content || '正在深度思考中...')"
                   ></div>
+
+                  <!-- Citations Display -->
+                  <div 
+                    v-if="message.role === 'assistant' && getCitations(message).length > 0" 
+                    class="citations-container"
+                  >
+                    <div class="citations-header">
+                       <el-icon><Document /></el-icon> <span>参考资料</span>
+                    </div>
+                    <div class="citation-grid">
+                       <div 
+                        v-for="(cite, cIdx) in getCitations(message)" 
+                        :key="cIdx" 
+                        class="citation-item"
+                       >
+                          <div class="citation-index">{{ cIdx + 1 }}</div>
+                          <div class="citation-content">
+                            <div class="citation-source">{{ cite.source_file }}</div>
+                            <div class="citation-preview" :title="cite.text">{{ cite.text }}</div>
+                          </div>
+                       </div>
+                    </div>
+                  </div>
                   <!-- 悬浮操作按钮 -->
                   <div 
                     class="bubble-actions" 
@@ -278,7 +301,7 @@ import { ref, nextTick, watch, computed, onMounted } from 'vue'
 import { useChatStore } from '@/stores/chatStore'
 import { 
   Plus, User, Cpu, Top, CircleClose,
-  MagicStick, Pointer, ChatRound, Delete, EditPen, RefreshRight, CopyDocument
+  MagicStick, Pointer, ChatRound, Delete, EditPen, RefreshRight, CopyDocument, Document
 } from '@element-plus/icons-vue'
 import type { ScrollbarInstance } from 'element-plus'
 import MarkdownIt from 'markdown-it'
@@ -311,6 +334,13 @@ function renderMarkdown(content: string): string {
   const unescaped = content.replace(/\\n/g, '\n')
   const preprocessed = preprocessMarkdown(unescaped)
   return md.render(preprocessed)
+}
+
+function getCitations(message: any): any[] {
+  if (message.citations && Array.isArray(message.citations)) {
+    return message.citations
+  }
+  return []
 }
 
 // State
@@ -798,6 +828,87 @@ const scrollToBottom = () => {
 }
 
 .user-avatar { background: #334155 !important; }
+
+/* Citations Styles */
+.citations-container {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  font-size: 13px;
+}
+
+.citations-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #475569;
+  font-weight: 600;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.citation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.citation-item {
+  display: flex;
+  gap: 8px;
+  background: white;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #f1f5f9;
+  align-items: flex-start;
+  transition: all 0.2s;
+}
+
+.citation-item:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+.citation-index {
+  background: #e2e8f0;
+  color: #64748b;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%; /* Circle */
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.citation-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.citation-source {
+  font-weight: 500;
+  color: #334155;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.citation-preview {
+  color: #94a3b8;
+  font-size: 11px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.4;
+}
 .ai-avatar { background: linear-gradient(135deg, #007aff 0%, #00c6ff 100%) !important; }
 
 .bubble-wrapper {

@@ -1,12 +1,21 @@
 import request from './request'
 
 // Chat message types
+export interface Citation {
+    doc_id: string
+    text: string
+    chunk_index?: number
+    source_file?: string
+    score?: number
+}
+
 export interface ChatMessage {
     id?: number
     sessionId?: number
     role: 'user' | 'assistant'
     content: string
     createTime?: string
+    citations?: Citation[] | string // Can be string from backend (JSON) or parsed object
 }
 
 export interface ChatSession {

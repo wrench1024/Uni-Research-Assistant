@@ -57,6 +57,41 @@ public class Document implements Serializable {
     private Integer status;
 
     /**
+     * Authors (comma-separated)
+     */
+    private String authors;
+
+    /**
+     * Publication Year
+     */
+    private Integer publicationYear;
+
+    /**
+     * Journal Name
+     */
+    private String journal;
+
+    /**
+     * Volume
+     */
+    private String volume;
+
+    /**
+     * Page Range
+     */
+    private String pages;
+
+    /**
+     * DOI
+     */
+    private String doi;
+
+    /**
+     * Publisher
+     */
+    private String publisher;
+
+    /**
      * Logic Delete
      */
     @TableLogic

@@ -160,19 +160,48 @@ async def stream_chat(request: ChatRequest):
     
     # RAG: Search for relevant context
     system_prompt = None
+    citations = []
+    
     if request.use_rag and RAG_ENABLED:
         try:
-            context_chunks = await run_in_threadpool(
+            # search_context now returns list of dicts with metadata
+            context_results = await run_in_threadpool(
                 search_context, 
                 request.message, 
                 k=4, 
                 doc_id=request.doc_id
             )
-            if context_chunks:
+            
+            if context_results:
+                # Extract text for prompt
+                context_chunks = [item["text"] for item in context_results]
+                
+                # Prepare citations for frontend
+                citations = []
+                for item in context_results:
+                    citations.append({
+                        "doc_id": item.get("doc_id"),
+                        "text": item.get("text")[:200] + "...", # Preview
+                        "chunk_index": item.get("chunk_index"),
+                        "source_file": item.get("source_file")
+                    })
+                
                 system_prompt = build_rag_prompt(request.message, context_chunks)
-                print(f"RAG: Found {len(context_chunks)} context chunks")
+                print(f"RAG: Found {len(context_results)} context chunks")
+                
+                # Emit citation event properly as JSON
+                citation_event = {
+                    "type": "citation",
+                    "citations": citations
+                }
+                # Double newline is handled by stream_llm_response wrapper usually, 
+                # but here we yield it directly before the generator starts
+                # We need to make sure stream_llm_response handles this or yield it here
+                
         except Exception as e:
             print(f"RAG search failed: {e}")
+            import traceback
+            traceback.print_exc()
             # Continue without RAG context
     
     # Add system prompt if RAG found context
@@ -184,12 +213,13 @@ async def stream_chat(request: ChatRequest):
         messages.append({"role": msg.role, "content": msg.content})
     messages.append({"role": "user", "content": request.message})
 
-    return StreamingResponse(stream_llm_response(messages), media_type="text/event-stream")
+    return StreamingResponse(stream_llm_response(messages, initial_event=citation_event if citations else None), media_type="text/event-stream")
 
 @app.post("/api/v1/analyze/summary")
 async def analyze_summary(request: AnalysisRequest):
     """
     Generate a summary for a specific document.
+    Uses Map-Reduce strategy for large documents.
     """
     if not RAG_ENABLED:
         raise HTTPException(status_code=503, detail="RAG service is not available")
@@ -201,15 +231,30 @@ async def analyze_summary(request: AnalysisRequest):
     if not chunks:
         raise HTTPException(status_code=404, detail=f"No content found for document: {request.doc_id}")
     
-    # Simple strategy: Concatenate all chunks (truncate if too long) for now
-    # TODO: Implement Map-Reduce for very large docs
     full_text = "\n\n".join(chunks)
+    total_chars = len(full_text)
     
-    # Truncate to avoid context limit (approx 30k chars for ~8k tokens safety, DeepSeek supports 32k-128k but let's be safe)
-    if len(full_text) > 30000:
-        full_text = full_text[:30000] + "...(truncated)"
+    print(f"Document size: {total_chars} characters, {len(chunks)} chunks")
     
-    # 2. Build Prompt
+    # 2. Choose strategy based on document size
+    if total_chars <= 30000:
+        # Small document: Direct summarization
+        print("Using direct summarization (small document)")
+        return StreamingResponse(
+            direct_summarize(full_text), 
+            media_type="text/event-stream"
+        )
+    else:
+        # Large document: Map-Reduce summarization
+        print(f"Using Map-Reduce summarization (large document: {total_chars} chars)")
+        return StreamingResponse(
+            map_reduce_summarize(chunks), 
+            media_type="text/event-stream"
+        )
+
+
+def direct_summarize(text: str):
+    """Direct summarization for small documents."""
     system_prompt = """你是一个专业的学术研究助手。请仔细阅读用户提供的文档内容，并生成一份高质量的摘要。
 摘要应包含：
 1. 核心研究问题
@@ -219,48 +264,263 @@ async def analyze_summary(request: AnalysisRequest):
 
     messages = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": f"请总结以下文档内容：\n\n{full_text}"}
+        {"role": "user", "content": f"请总结以下文档内容：\n\n{text}"}
     ]
     
-    # 3. Call LLM (Non-streaming for now, or streaming? Let's use streaming for better UX)
-    # Re-using the call_api logic pattern but tailored for this endpoint
+    yield from stream_llm_response(messages)
+
+
+def map_reduce_summarize(chunks: List[str]):
+    """
+    Map-Reduce summarization for large documents.
     
-    # ... Helper function to stream ...
-    return StreamingResponse(stream_llm_response(messages), media_type="text/event-stream")
+    Steps:
+    1. Group chunks into sections (~20k chars each)
+    2. Summarize each section (Map)
+    3. Combine section summaries (Reduce)
+    """
+    # === Step 1: Group chunks into sections ===
+    SECTION_SIZE = 20000  # 每个部分约 20k 字符
+    sections = []
+    current_section = []
+    current_size = 0
+    
+    for chunk in chunks:
+        chunk_size = len(chunk)
+        if current_size + chunk_size > SECTION_SIZE and current_section:
+            # Start new section
+            sections.append("\n\n".join(current_section))
+            current_section = [chunk]
+            current_size = chunk_size
+        else:
+            current_section.append(chunk)
+            current_size += chunk_size
+    
+    # Add last section
+    if current_section:
+        sections.append("\n\n".join(current_section))
+    
+    print(f"Split into {len(sections)} sections for Map-Reduce")
+    
+    # === Step 2: Map - Summarize each section ===
+    yield "data: 📊 **开始分段处理文档** (共 {0} 个部分)...\n\n".format(len(sections))
+    
+    section_summaries = []
+    for i, section in enumerate(sections):
+        yield f"data: \n\n⏳ 正在处理第 {i+1}/{len(sections)} 部分...\n\n\n\n"
+        
+        # Generate section summary (non-streaming for internal processing)
+        summary = generate_section_summary(section, i + 1)
+        section_summaries.append(summary)
+        
+        yield f"data: ✅ 完成第 {i+1} 部分\n\n\n\n"
+    
+    # === Step 3: Reduce - Combine section summaries ===
+    yield "data: \n\n🔄 **汇总所有部分**...\n\n\n\n"
+    
+    combined_summaries = "\n\n".join([
+        f"【第 {i+1} 部分摘要】\n{summary}" 
+        for i, summary in enumerate(section_summaries)
+    ])
+    
+    # Final synthesis
+    final_prompt = f"""你是一个学术研究专家。我已经将一份长文档分成了 {len(sections)} 个部分，并对每个部分生成了摘要。
+现在请你将这些部分摘要整合成一份连贯、完整的最终摘要。
+
+要求：
+1. 保留所有关键信息
+2. 去除冗余内容
+3. 确保逻辑连贯
+4. 使用 Markdown 格式
+
+以下是各部分摘要：
+
+{combined_summaries}
+
+请生成最终摘要："""
+    
+    messages = [
+        {"role": "user", "content": final_prompt}
+    ]
+    
+    yield "data: \n\n---\n\n## 📝 最终摘要\n\n\n\n"
+    yield from stream_llm_response(messages)
+
+
+def generate_section_summary(section_text: str, section_num: int) -> str:
+    """
+    Generate a summary for a single section (synchronous).
+    Returns the summary text.
+    """
+    system_prompt = f"""你是一个学术研究助手。这是一份长文档的第 {section_num} 部分。
+请生成一份简洁的摘要，包含这部分的关键信息。
+摘要应简洁但完整，约 200-300 字。"""
+    
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": section_text[:15000]}  # Limit to prevent overflow
+    ]
+    
+    # Call API synchronously (non-streaming)
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json",
+    }
+    data = {
+        "model": MODEL_NAME,
+        "messages": messages,
+        "stream": False  # Non-streaming for internal use
+    }
+    
+    try:
+        response = requests.post(BASE_URL, headers=headers, json=data, timeout=60)
+        if response.status_code == 200:
+            result = response.json()
+            return result["choices"][0]["message"]["content"]
+        else:
+            return f"[摘要生成失败: HTTP {response.status_code}]"
+    except Exception as e:
+        print(f"Section summary error: {e}")
+        return f"[摘要生成出错: {str(e)}]"
+
 
 @app.post("/api/v1/analyze/comparison")
 async def analyze_comparison(request: ComparisonRequest):
     """
-    Compare multiple documents.
+    Compare multiple documents with structured comparison table.
     """
     if not RAG_ENABLED:
         raise HTTPException(status_code=503, detail="RAG service is not available")
-        
+    
+    print(f"=== Comparing {len(request.doc_ids)} documents ===")
+    
+    # 1. Retrieve document contents
     doc_contents = []
+    doc_titles = []
     for doc_id in request.doc_ids:
         chunks = await run_in_threadpool(get_document_chunks, doc_id)
         if chunks:
-            text = "\n\n".join(chunks)[:15000] # Limit each doc to ensure fit
-            doc_contents.append(f"【文档: {doc_id}】\n{text}")
-            
-    if not doc_contents:
-        raise HTTPException(status_code=404, detail="No content found for provided documents")
-        
-    combined_text = "\n\n====================\n\n".join(doc_contents)
+            text = "\n\n".join(chunks)[:15000]  # Limit each doc
+            doc_contents.append(text)
+            doc_titles.append(str(doc_id))
     
-    system_prompt = """你是一个专业的学术情报分析师。请对比阅读以下多篇文档，并进行深度对比分析。
-请重点关注：
-1. 各文档观点的异同
-2. 研究方法的区别
-3. 结论的互补性或冲突
-请生成一份结构化的对比报告。"""
+    if len(doc_contents) < 2:
+        raise HTTPException(status_code=400, detail="Need at least 2 documents for comparison")
+    
+    # 2. Generate structured comparison
+    return StreamingResponse(
+        generate_structured_comparison(doc_contents, doc_titles, request.aspects),
+        media_type="text/event-stream"
+    )
 
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": f"请对比以下文档：\n\n{combined_text}"}
-    ]
+
+def generate_structured_comparison(doc_contents: List[str], doc_titles: List[str], custom_aspects: Optional[List[str]] = None):
+    """
+    Generate structured comparison with table data and detailed analysis.
     
-    return StreamingResponse(stream_llm_response(messages), media_type="text/event-stream")
+    Steps:
+    1. Generate comparison table (JSON)
+    2. Yield table as SSE event
+    3. Generate detailed analysis (streaming)
+    """
+    # === Step 1: Define comparison dimensions ===
+    if custom_aspects and len(custom_aspects) > 0:
+        dimensions = custom_aspects
+    else:
+        dimensions = ["研究问题/目标", "研究方法", "主要发现", "创新点", "局限性"]
+    
+    # === Step 2: Generate comparison table ===
+    yield "data: 📊 正在生成对比表格...\n\n"
+    
+    # Build prompt for table generation
+    doc_contents_combined = ""
+    for i, (title, content) in enumerate(zip(doc_titles, doc_contents)):
+        doc_contents_combined += f"\n\n【文档 {i+1}: {title}】\n{content}\n"
+    
+    table_prompt = f"""你是一个学术对比分析专家。请对以下 {len(doc_contents)} 篇文档进行结构化对比分析。
+
+对比维度：{', '.join(dimensions)}
+
+文档内容：
+{doc_contents_combined}
+
+请严格按照以下 JSON 格式输出对比表格数据，不要添加任何其他文字：
+
+{{
+  "dimensions": {dimensions},
+  "comparison": [
+    ["{dimensions[0]}的文档1内容", "{dimensions[0]}的文档2内容", ...],
+    ["{dimensions[1]}的文档1内容", "{dimensions[1]}的文档2内容", ...],
+    ...
+  ]
+}}
+
+要求：
+1. 每个维度的内容要简洁（50-100字）
+2. 突出关键差异
+3. 使用专业术语"""
+
+    # Call LLM to generate table (non-streaming for parsing)
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json",
+    }
+    data = {
+        "model": MODEL_NAME,
+        "messages": [{"role": "user", "content": table_prompt}],
+        "stream": False
+    }
+    
+    try:
+        response = requests.post(BASE_URL, headers=headers, json=data, timeout=60)
+        if response.status_code == 200:
+            result = response.json()
+            table_text = result["choices"][0]["message"]["content"]
+            
+            # Parse JSON from response
+            import re
+            json_match = re.search(r'\{[\s\S]*\}', table_text)
+            if json_match:
+                table_json = json_match.group(0)
+                # Emit table event
+                table_event = {
+                    "type": "comparison_table",
+                    "documents": [{"id": title, "title": f"文档{i+1}"} for i, title in enumerate(doc_titles)],
+                    "table_data": table_json  # String JSON to be parsed by frontend
+                }
+                yield f"data: {json.dumps(table_event, ensure_ascii=False)}\n\n"
+            else:
+                yield "data: ⚠️ 表格生成失败，将直接显示详细分析\n\n"
+        else:
+            yield "data: ⚠️ 表格生成失败，将直接显示详细分析\n\n"
+    except Exception as e:
+        print(f"Table generation error: {e}")
+        yield "data: ⚠️ 表格生成失败，将直接显示详细分析\n\n"
+    
+    # === Step 3: Generate detailed analysis ===
+    yield "data: \n\n---\n\n## 📝 详细对比分析\n\n\n\n"
+    
+    analysis_prompt = f"""你是一个专业的学术情报分析师。基于以下文档，生成一份深度对比分析报告。
+
+文档内容：
+{doc_contents_combined}
+
+请从以下角度进行详细对比分析：
+1. 研究背景与动机的异同
+2. 方法论的差异与优劣
+3. 核心发现的互补性或冲突
+4. 创新点的比较
+5. 应用前景与局限性
+
+**格式要求**：
+- 使用 Markdown 格式
+- 使用标题、列表、加粗等格式组织内容
+- **禁止使用 Markdown 表格**（对比表格已在上方单独展示）
+- 层次清晰，内容详实"""
+    
+    messages = [{"role": "user", "content": analysis_prompt}]
+    yield from stream_llm_response(messages)
+
 
 @app.post("/api/v1/write/process")
 async def write_process(request: WriteRequest):
@@ -293,7 +553,11 @@ async def write_process(request: WriteRequest):
     return StreamingResponse(stream_llm_response(messages), media_type="text/event-stream")
 
 # Helper to avoid code duplication
-def stream_llm_response(messages):
+def stream_llm_response(messages, initial_event=None):
+    # Send initial event if provided (e.g., citations)
+    if initial_event:
+        yield f"data: {json.dumps(initial_event)}\n\n"
+        
     headers = {
         "Authorization": f"Bearer {API_KEY}",
         "Content-Type": "application/json",

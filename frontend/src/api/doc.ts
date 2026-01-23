@@ -63,7 +63,7 @@ export const docAPI = {
             const response = await request.get(`/doc/${docId}/download`, {
                 responseType: 'blob'
             })
-            
+
             // Create blob URL and trigger download
             const blob = new Blob([response as unknown as BlobPart])
             const url = window.URL.createObjectURL(blob)
@@ -86,6 +86,40 @@ export const docAPI = {
      */
     deleteDocument(docId: number): Promise<any> {
         return request.delete(`/doc/${docId}`)
+    },
+
+    /**
+     * Update document metadata
+     * Backend: PUT /doc/{id}/metadata
+     */
+    updateMetadata(docId: number, metadata: {
+        authors?: string
+        publicationYear?: number | null
+        journal?: string
+        volume?: string
+        pages?: string
+        doi?: string
+        publisher?: string
+    }): Promise<any> {
+        return request.put(`/doc/${docId}/metadata`, metadata)
+    },
+
+    /**
+     * Get citation for document
+     * Backend: GET /doc/{id}/citation
+     */
+    getCitation(docId: number, format: 'bibtex' | 'endnote' = 'bibtex'): Promise<any> {
+        return request.get(`/doc/${docId}/citation`, {
+            params: { format }
+        })
+    },
+
+    /**
+     * Get document detail
+     * Backend: GET /doc/{id}
+     */
+    getDetail(docId: number): Promise<any> {
+        return request.get(`/doc/${docId}`)
     }
 }
 

@@ -26,6 +26,11 @@ public class ChatMessage {
 
     private Integer tokenCount;
 
+    /**
+     * 引用信息 (JSON格式)
+     */
+    private String citations;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 }

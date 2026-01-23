@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.uni.research.common.result.Result;
 import com.uni.research.module.doc.dto.DocumentQueryDto;
 import com.uni.research.module.doc.dto.DocumentVo;
+import com.uni.research.module.doc.entity.Document;
+import com.uni.research.module.doc.service.CitationService;
 import com.uni.research.module.doc.service.DocumentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -17,6 +19,8 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.InputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -26,6 +30,7 @@ import java.nio.charset.StandardCharsets;
 public class DocumentController {
 
     private final DocumentService documentService;
+    private final CitationService citationService;
 
     @Operation(summary = "Upload Document")
     @PostMapping(value = "/upload", consumes = "multipart/form-data")
@@ -72,5 +77,60 @@ public class DocumentController {
     public Result<Boolean> delete(@PathVariable Long id) {
         documentService.deleteDocument(id);
         return Result.success(true);
+    }
+
+    @Operation(summary = "Update Document Metadata")
+    @PutMapping("/{id}/metadata")
+    public Result<Boolean> updateMetadata(@PathVariable Long id, @RequestBody Document metadata) {
+        Document doc = documentService.getById(id);
+        if (doc == null) {
+            return Result.fail("文档不存在");
+        }
+
+        // Update metadata fields
+        doc.setAuthors(metadata.getAuthors());
+        doc.setPublicationYear(metadata.getPublicationYear());
+        doc.setJournal(metadata.getJournal());
+        doc.setVolume(metadata.getVolume());
+        doc.setPages(metadata.getPages());
+        doc.setDoi(metadata.getDoi());
+        doc.setPublisher(metadata.getPublisher());
+
+        documentService.updateById(doc);
+        return Result.success(true);
+    }
+
+    @Operation(summary = "Generate Citation")
+    @GetMapping("/{id}/citation")
+    public Result<Map<String, String>> getCitation(@PathVariable Long id,
+            @RequestParam(defaultValue = "bibtex") String format) {
+        Document doc = documentService.getById(id);
+        if (doc == null) {
+            return Result.fail("文档不存在");
+        }
+
+        Map<String, String> result = new HashMap<>();
+
+        if ("bibtex".equalsIgnoreCase(format)) {
+            result.put("format", "bibtex");
+            result.put("citation", citationService.generateBibTeX(doc));
+        } else if ("endnote".equalsIgnoreCase(format) || "ris".equalsIgnoreCase(format)) {
+            result.put("format", "endnote");
+            result.put("citation", citationService.generateEndNote(doc));
+        } else {
+            return Result.fail("不支持的格式: " + format);
+        }
+
+        return Result.success(result);
+    }
+
+    @Operation(summary = "Get Document Detail")
+    @GetMapping("/{id}")
+    public Result<Document> getDetail(@PathVariable Long id) {
+        Document doc = documentService.getById(id);
+        if (doc == null) {
+            return Result.fail("文档不存在");
+        }
+        return Result.success(doc);
     }
 }

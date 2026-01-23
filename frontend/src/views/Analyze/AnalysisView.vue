@@ -3,12 +3,13 @@ import { ref, onMounted, computed } from 'vue'
 import { docAPI, type DocumentInfo } from '@/api/doc'
 import { ElMessage } from 'element-plus'
 import { marked } from 'marked'
+import ComparisonTable from '@/components/ComparisonTable.vue'
 
 // State
 const documents = ref<DocumentInfo[]>([])
 const loading = ref(false)
 const selectedDocs = ref<number[]>([]) // Use document IDs (numbers)
-const analysisResult = ref<{ content: string; loading: boolean } | null>(null)
+const analysisResult = ref<{ content: string; loading: boolean; comparisonTable?: any } | null>(null)
 const mode = ref<'summary' | 'comparison'>('summary')
 
 // Load documents from backend: GET /api/doc/list
@@ -93,6 +94,21 @@ const runAnalysis = async () => {
             analysisResult.value!.loading = false
             return
           }
+          
+          // Try to parse as JSON (for comparison_table event)
+          if (data.startsWith('{')) {
+            try {
+              const parsed = JSON.parse(data)
+              if (parsed.type === 'comparison_table') {
+                // Store table data separately
+                analysisResult.value!.comparisonTable = parsed
+                continue  // Don't append to content
+              }
+            } catch {
+              // Not JSON, treat as text
+            }
+          }
+          
           // Handle escaped newlines
           const text = data.replace(/\\n/g, '\n')
           analysisResult.value!.content += text
@@ -180,6 +196,14 @@ const renderedContent = computed(() => {
       </div>
       <div v-else class="result-box">
         <h3>{{ mode === 'summary' ? '📝 智能摘要' : '🔍 深度对比报告' }}</h3>
+        
+        <!-- Comparison Table (if exists) -->
+        <ComparisonTable 
+          v-if="analysisResult.comparisonTable"
+          :documents="analysisResult.comparisonTable.documents"
+          :tableDataJson="analysisResult.comparisonTable.table_data"
+        />
+        
         <div class="markdown-body" v-html="renderedContent"></div>
         <div v-if="analysisResult.loading" class="loading-indicator">
           <span class="dot"></span><span class="dot"></span><span class="dot"></span>
