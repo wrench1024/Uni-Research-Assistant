@@ -26,16 +26,22 @@
 - **现代化 UI**：卡片式布局，文件类型图标识别。
 - **对象存储**：集成 MinIO。
 - **安全保障**：全 API 覆盖 JWT 认证，支持大文件上传（单文件 50MB）。
+- **笔记管理**：支持阅读时的即时标注和笔记管理，支持标签系统。
 
 ### 4. 📝 智能研读与写作 (Enhanced)
 - **多文档对比**：结构化生成对比表格，支持多维度深度分析。
 - **混合检索 (RAG+)**：结合 BM25 关键词检索与向量语义检索，提升专业术语匹配精度。
 - **引用生成**：自动提取元数据，生成 BibTeX 和 EndNote (RIS) 标准引用格式。
-- **笔记管理**：支持阅读时的即时标注和笔记管理，支持标签系统。
+
+### 5. ✍️ 智能写作助手 (New)
+- **多模式写作**：支持 **润色 (Polish)**、**扩写 (Expand)**、**纠错 (Fix Grammar)** 和 **续写 (Continue)**。
+- **交互式体验**：选中文本即可唤起悬浮工具条，实时流式更新，所见即所得。
+- **结构化导出**：生成的纯文本可自动解析为带目录和层级标题的 Word (`.docx`) 文档。
+- **精准统计**：支持排除空格的中文字符统计。
 
 ## 🏗️ 架构概览
 
-- **Frontend**: Vue 3 + TypeScript + Element Plus + Pinia
+- **Frontend**: Vue 3 + TypeScript + Element Plus + Pinia + **Marked** + **Docx**
 - **Backend**: Spring Boot 3 + MyBatis-Plus + MySQL + Redis + MinIO
 - **AI Service**: FastAPI + LangChain + Gemini 2.0 Flash + PGVector + BM25/RRF
 - **Infrastructure**: Docker Compose 一键启动中间件

@@ -151,27 +151,36 @@
                     v-html="message.role === 'user' ? message.content : renderMarkdown(message.content || '正在深度思考中...')"
                   ></div>
 
-                  <!-- Citations Display -->
+                  <!-- Citations Display - 仅显示回答中实际引用且有效的资料 -->
                   <div 
-                    v-if="message.role === 'assistant' && getCitations(message).length > 0" 
+                    v-if="message.role === 'assistant' && getUsedCitations(message).length > 0" 
                     class="citations-container"
                   >
-                    <div class="citations-header">
-                       <el-icon><Document /></el-icon> <span>参考资料</span>
+                    <div class="citations-header" @click="toggleCitations(index)">
+                       <el-icon><Document /></el-icon> 
+                       <span>参考资料 ({{ getUsedCitations(message).length }})</span>
+                       <el-icon class="expand-icon" :class="{ expanded: isCitationsExpanded(index) }">
+                         <ArrowDown />
+                       </el-icon>
                     </div>
-                    <div class="citation-grid">
-                       <div 
-                        v-for="(cite, cIdx) in getCitations(message)" 
-                        :key="cIdx" 
-                        class="citation-item"
-                       >
-                          <div class="citation-index">{{ cIdx + 1 }}</div>
-                          <div class="citation-content">
-                            <div class="citation-source">{{ cite.source_file }}</div>
-                            <div class="citation-preview" :title="cite.text">{{ cite.text }}</div>
-                          </div>
-                       </div>
-                    </div>
+                    <transition name="citations-slide">
+                      <div v-show="isCitationsExpanded(index)" class="citation-grid">
+                         <div 
+                          v-for="(cite, _key) in getUsedCitations(message)" 
+                          :key="_key" 
+                          class="citation-item"
+                          @click="showCitationDetail(cite)"
+                         >
+                            <div class="citation-index">{{ cite.displayIndex }}</div>
+                            <div class="citation-content">
+                              <el-tooltip :content="cite.source_file" placement="top" :show-after="300">
+                                <div class="citation-source">{{ getFileName(cite.source_file) }}</div>
+                              </el-tooltip>
+                              <div class="citation-preview">{{ truncateText(cite.text, 80) }}</div>
+                            </div>
+                         </div>
+                      </div>
+                    </transition>
                   </div>
                   <!-- 悬浮操作按钮 -->
                   <div 
@@ -301,7 +310,7 @@ import { ref, nextTick, watch, computed, onMounted } from 'vue'
 import { useChatStore } from '@/stores/chatStore'
 import { 
   Plus, User, Cpu, Top, CircleClose,
-  MagicStick, Pointer, ChatRound, Delete, EditPen, RefreshRight, CopyDocument, Document
+  MagicStick, Pointer, ChatRound, Delete, EditPen, RefreshRight, CopyDocument, Document, ArrowDown
 } from '@element-plus/icons-vue'
 import type { ScrollbarInstance } from 'element-plus'
 import MarkdownIt from 'markdown-it'
@@ -341,6 +350,75 @@ function getCitations(message: any): any[] {
     return message.citations
   }
   return []
+}
+
+// 提取回答中实际使用的引用 (匹配 [1], [2] 等), 并保留原始序号
+function getUsedCitations(message: any): any[] {
+  const allCitations = getCitations(message)
+  if (!allCitations.length) return []
+  
+  const content = message.content || ''
+  
+  // 提取内容中出现的引用序号
+  const matches = content.matchAll(/\[(\d+)\]/g)
+  const usedIndices = new Set<number>()
+  for (const match of matches) {
+    usedIndices.add(parseInt(match[1]))
+  }
+  
+  // 如果内容中没有任何引用标记，暂不显示（严格遵循用户要求：只显示回答中参考的）
+  if (usedIndices.size === 0) return []
+  
+  const results = []
+  for (let i = 0; i < allCitations.length; i++) {
+    const displayIndex = i + 1
+    // 只有当序号出现在回答中，且该引用有效(有source_file)时才显示
+    // (逻辑：回答里说参考了[1]，如果[1]是无效文件，这也很奇怪，但为了UI整洁我们还是过滤掉无效的)
+    if (usedIndices.has(displayIndex)) {
+       const c = allCitations[i]
+       if (c.source_file && c.source_file.trim() !== '') {
+          results.push({ ...c, displayIndex })
+       }
+    }
+  }
+  return results
+}
+
+// 从路径中提取文件名
+function getFileName(path: string): string {
+  if (!path) return '未知来源'
+  const parts = path.replace(/\\/g, '/').split('/')
+  return parts[parts.length - 1] || path
+}
+
+// 截断文本
+function truncateText(text: string, maxLen: number): string {
+  if (!text) return ''
+  if (text.length <= maxLen) return text
+  return text.substring(0, maxLen) + '...'
+}
+
+// 展开/收起引用 (默认为展开状态，undefined = true)
+const expandedCitations = ref<Record<number, boolean>>({})
+function toggleCitations(index: number) {
+  // 如果当前是 undefined (默认态)，点击后变成 false (收起)
+  // 如果是 true，点击变 false
+  // 如果是 false，点击变 true
+  const current = expandedCitations.value[index] !== false
+  expandedCitations.value[index] = !current
+}
+
+function isCitationsExpanded(index: number) {
+  return expandedCitations.value[index] !== false
+}
+
+// 显示引用详情
+function showCitationDetail(cite: any) {
+  ElMessage({
+    message: `来源: ${cite.source_file}`,
+    type: 'info',
+    duration: 3000
+  })
 }
 
 // State
@@ -1292,5 +1370,131 @@ const scrollToBottom = () => {
 .custom-dialog :deep(.el-input__inner) {
   height: 44px;
   border-radius: 10px;
+}
+
+/* === Citations Styles === */
+.citations-container {
+  margin-top: 16px;
+  border-top: 1px solid #e0eeff;
+  padding-top: 12px;
+}
+
+.citations-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.citations-header:hover {
+  background: rgba(0, 122, 255, 0.06);
+  color: #007aff;
+}
+
+.citations-header .expand-icon {
+  margin-left: auto;
+  transition: transform 0.3s ease;
+}
+
+.citations-header .expand-icon.expanded {
+  transform: rotate(180deg);
+}
+
+.citation-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 4px;
+}
+
+.citation-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex: 1 1 calc(33.33% - 10px);
+  min-width: 200px;
+  max-width: 300px;
+}
+
+.citation-item:hover {
+  border-color: #007aff;
+  background: #f0f7ff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.12);
+}
+
+.citation-index {
+  width: 24px;
+  height: 24px;
+  background: linear-gradient(135deg, #007aff, #00c6ff);
+  color: white;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.citation-content {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.citation-source {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+
+.citation-preview {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Citations slide animation */
+.citations-slide-enter-active,
+.citations-slide-leave-active {
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.citations-slide-enter-from,
+.citations-slide-leave-to {
+  opacity: 0;
+  max-height: 0;
+  margin-top: 0;
+}
+
+.citations-slide-enter-to,
+.citations-slide-leave-from {
+  opacity: 1;
+  max-height: 500px;
+  margin-top: 12px;
 }
 </style>

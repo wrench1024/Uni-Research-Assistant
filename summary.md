@@ -57,11 +57,17 @@ LLM Research Assistant 是一个专为学术研究设计的智能化辅助平台
 
 - **AI Core**: LangChain + Gemini 2.0 Flash + PGVector + **Rank-BM25**
 - **Backend**: Spring Boot 3 + MyBatis-Plus + **Spring Security**
-- **Frontend**: Vue 3 + Element Plus + **Pinia**
+- **Frontend**: Vue 3 + Element Plus + **Pinia** + **Marked** + **Docx**
 
 ## 📂 目录清理
 - 移除了不再使用的测试脚本（如 `tests/test_citation_stream.py`）。
 - 更新了 `.gitignore`，规范化了文件管理。
 
+## ✅ 近期完成功能 (Phase 12)
+### 智能写作助手 (Phase 12)
+- **多模式写作**: 润色、扩写、纠错、续写。
+- **交互**: 选中文本悬浮菜单，流式响应，停止生成。
+- **导出**: 纯文本转结构化 Word 文档（自动目录、标题）。
+
 ## 📅 下一步计划
-关注用户反馈，持续优化 RAG 响应速度和准确性。考虑引入更多高级 RAG 技术（如重排序 Rerank）。
+完成所有核心功能开发。下一步进行系统集成测试和性能优化。

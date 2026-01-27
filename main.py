@@ -536,19 +536,29 @@ async def write_process(request: WriteRequest):
     
     specific_instruction = instruction_map.get(request.instruction, "请处理以下文本：")
     
-    system_prompt = "你是一个资深的学术写作导师，旨在帮助用户写出高水平的学术文章。"
+    system_prompt = """你是一个资深的学术写作导师。
+    【重要规则】
+    1. 你必须直接输出处理后的文本内容。
+    2. 严禁包含任何解释、前言、后缀、由于、改写说明等元数据。
+    3. 即使文本很短，也只输出结果。
+    4. 【格式要求】：
+       - **可以使用** 序号标题来组织结构（例如："1. 研究背景" 或 "一、 方法描述"），这将便于后续生成 Word 目录。
+       - **不要使用** Markdown 的 # 符号作为标题。
+       - **不要使用** **加粗** 或 *斜体* 符号（保持纯文本整洁）。
+       - 仅使用纯文本段落，段落之间用空行分隔。
+    """
     
-    # Build user message with optional context
-    user_message = f"{specific_instruction}\n\n【用户文本】\n{request.text}"
+    # Wrap specific instruction to reinforce the rule
+    final_instruction = f"{specific_instruction}\n(请直接输出结果，可使用'1.'或'一、'作为层级标题，不要包含其他解释)"
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": f"{final_instruction}\n\n【用户文本】\n{request.text}"}
+    ]
     
     # Include user's custom context/requirements if provided
     if request.context and request.context.strip():
-        user_message += f"\n\n【额外要求】\n请务必遵循以下额外要求：{request.context}"
-    
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_message}
-    ]
+        messages[1]["content"] += f"\n\n【额外要求】\n{request.context}"
     
     return StreamingResponse(stream_llm_response(messages), media_type="text/event-stream")
 

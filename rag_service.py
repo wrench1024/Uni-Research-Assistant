@@ -357,18 +357,28 @@ def build_rag_prompt(user_message: str, context_chunks: List[str]) -> str:
     if not context_chunks:
         return None  # No context available
     
-    context_text = "\n\n---\n\n".join(context_chunks)
+    # Format context with explicit numbering [1], [2], etc.
+    context_parts = []
+    for i, chunk in enumerate(context_chunks):
+        context_parts.append(f"【资料 {i+1}】\n{chunk}")
     
-    system_prompt = f"""你是一个智能研究助手。请根据以下参考资料回答用户的问题。
-如果参考资料中没有相关信息，请明确告知用户，并基于你的通用知识提供帮助。
+    context_text = "\n\n".join(context_parts)
+    
+    system_prompt = f"""你是一个智能研究助手。请仔细根据提供的【参考资料】回答用户问题。
 
 【参考资料】
 {context_text}
 
-【注意事项】
-1. 优先使用参考资料中的信息回答问题
-2. 如果引用了参考资料，请注明来源
-3. 如果参考资料不足以回答问题，请告知用户并提供建议"""
+【回答要求】
+1. **必须**明确引用参考资料，且仅在资料**真正有用**时引用。引用格式为 `[index]`。
+   - 正确：根据资料 1，Transformer 模型... [1]
+   - 错误：资料 1 是关于 Transformer 的，与问题无关 [1]。
+2. 不要编造序号，只能使用提供的【资料 1】到【资料 {len(context_chunks)}】。
+3. **关键**：如果参考资料与问题无关：
+   - 直接说明“参考资料中没有相关信息”。
+   - **严禁**描述参考资料的具体内容（例如“资料 1 讲了 XXX”），也**严禁**引用这些无关资料。
+   - 直接基于你的通用知识回答用户问题。
+4. 回答要逻辑清晰，结构化。"""
     
     return system_prompt
 
