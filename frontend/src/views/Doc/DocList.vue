@@ -294,7 +294,12 @@ const formatFileSize = (bytes: number) => {
 // Format date time
 const formatDateTime = (dateString: string) => {
   if (!dateString) return ''
-  const date = new Date(dateString)
+  let normalized = dateString
+  if (typeof normalized === 'string' && normalized.includes(' ') && !normalized.includes('T')) {
+    normalized = normalized.replace(' ', 'T')
+  }
+  const date = new Date(normalized)
+  if (Number.isNaN(date.getTime())) return dateString
   return date.toLocaleString('zh-CN')
 }
 </script>

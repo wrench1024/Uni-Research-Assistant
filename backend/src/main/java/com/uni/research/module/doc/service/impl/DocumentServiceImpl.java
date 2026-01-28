@@ -28,6 +28,7 @@ import org.springframework.util.StringUtils;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -67,6 +68,7 @@ public class DocumentServiceImpl extends ServiceImpl<DocumentMapper, Document> i
         minioService.uploadFile(file, objectName);
 
         // 4. Save Metadata
+        LocalDateTime now = LocalDateTime.now();
         Document doc = new Document();
         doc.setUserId(currentUser.getId());
         doc.setTitle(originalFilename); // Default title as filename
@@ -76,6 +78,8 @@ public class DocumentServiceImpl extends ServiceImpl<DocumentMapper, Document> i
         doc.setFileType(suffix);
         doc.setStatus(0); // 0-Pending indexing
         doc.setDeleted(0);
+        doc.setCreateTime(now);
+        doc.setUpdateTime(now);
 
         this.save(doc);
 
@@ -126,7 +130,17 @@ public class DocumentServiceImpl extends ServiceImpl<DocumentMapper, Document> i
 
         Page<DocumentVo> voPage = new Page<>(result.getCurrent(), result.getSize(), result.getTotal());
         List<DocumentVo> voList = result.getRecords().stream()
-                .map(doc -> BeanUtil.copyProperties(doc, DocumentVo.class))
+                .map(doc -> {
+                    if (doc.getCreateTime() == null) {
+                        LocalDateTime fallback = doc.getUpdateTime() != null ? doc.getUpdateTime() : LocalDateTime.now();
+                        doc.setCreateTime(fallback);
+                        if (doc.getUpdateTime() == null) {
+                            doc.setUpdateTime(fallback);
+                        }
+                        this.updateById(doc);
+                    }
+                    return BeanUtil.copyProperties(doc, DocumentVo.class);
+                })
                 .collect(Collectors.toList());
         voPage.setRecords(voList);
 

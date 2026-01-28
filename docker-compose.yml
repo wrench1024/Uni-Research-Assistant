@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # 1. MySQL 数据库
   mysql:
@@ -19,7 +17,7 @@ services:
     image: redis:7.0
     container_name: uni-research-redis
     ports:
-      - "6379:6379"
+      - "16379:6379"
     command: redis-server --requirepass root # 简单的密码
 
   # 3. 向量数据库 (推荐 pgvector，比 Milvus 省资源)
@@ -42,8 +40,8 @@ services:
     image: minio/minio
     container_name: uni-research-minio
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "19000:9000"
+      - "19001:9001"
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin

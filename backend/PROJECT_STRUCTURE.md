@@ -41,7 +41,7 @@ backend/
 
 ### 3. 开发环境配置 (application-dev.yml)
 - ✅ MySQL 数据库: `uni_research_db` (端口 3307)
-- ✅ Redis: localhost:6379 (密码 root)
+- ✅ Redis: localhost:16379 (密码 root)
 - ✅ MyBatis-Plus 配置
 - ✅ JWT 配置 (24小时过期)
 - ✅ Python AI 服务地址: http://localhost:8000
@@ -136,7 +136,7 @@ com/uni/research/module/chat/
 
 ### Redis 连接
 - **主机**: localhost
-- **端口**: 6379
+- **端口**: 16379
 - **密码**: root
 - **数据库**: 0
 

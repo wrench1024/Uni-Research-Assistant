@@ -81,9 +81,9 @@ docker-compose ps
 
 应该看到 4 个容器都在运行：
 - `uni-research-mysql` (端口 3307)
-- `uni-research-redis` (端口 6379)
+- `uni-research-redis` (端口 16379)
 - `uni-research-vector` (端口 5432)
-- `uni-research-minio` (端口 9000, 9001)
+- `uni-research-minio` (端口 19000, 19001)
 
 ### 第三步：初始化数据库
 
@@ -226,9 +226,9 @@ npm run dev
 | 服务 | 端口 | 验证 URL | 预期响应 |
 |------|------|----------|---------|
 | **MySQL** | 3307 | `docker logs uni-research-mysql` | "ready for connections" |
-| **Redis** | 6379 | `docker exec -it uni-research-redis redis-cli -a root ping` | "PONG" |
+| **Redis** | 16379 | `docker exec -it uni-research-redis redis-cli -a root ping` | "PONG" |
 | **PostgreSQL** | 5432 | `docker logs uni-research-vector` | "database system is ready" |
-| **MinIO** | 9000, 9001 | http://localhost:9001 | MinIO 控制台 |
+| **MinIO** | 19000, 19001 | http://localhost:19001 | MinIO 控制台 |
 | **Python AI** | 8000 | http://localhost:8000 | `{"status": "ok"}` |
 | **Java Backend** | 8080 | http://localhost:8080/api/doc.html | Knife4j API 文档 |
 | **Vue Frontend** | 5173 | http://localhost:5173 | 登录页面 |
